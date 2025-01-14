@@ -13,6 +13,11 @@ public class RacingGame extends JPanel implements KeyListener {
     private int highScore = 0;
     private int obstacleSpeed = 3;
     private boolean gameOver = false;
+    private boolean gameStarted = false;
+    private CardLayout cardLayout;
+    private JPanel mainPanel;
+    private JPanel gamePanel;
+    private JPanel instructionsPanel;
 
     private Image Car;
     private Image Obstacle;
@@ -39,6 +44,18 @@ public class RacingGame extends JPanel implements KeyListener {
         setBackground(Color.GREEN);
         setLayout(new BorderLayout());
 
+        cardLayout = new CardLayout();
+        mainPanel = new JPanel(cardLayout);
+        gamePanel = new JPanel(new BorderLayout());
+        instructionsPanel = new JPanel(new BorderLayout());
+
+        JButton startButton = new JButton("Start");
+        startButton.addActionListener(e -> {
+            gameStarted = true;
+            requestFocusInWindow();
+            engineClip.loop(Clip.LOOP_CONTINUOUSLY); //engine sound plays on loop once you hit "Start" button
+        });
+
         JButton tryAgainButton = new JButton("Try Again");
         tryAgainButton.addActionListener(e -> {
             resetGame();
@@ -46,22 +63,56 @@ public class RacingGame extends JPanel implements KeyListener {
         });
 
         JButton endGameButton = new JButton("End Game");
-        endGameButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                System.exit(0);
-            }
-        });
+        endGameButton.addActionListener(e -> System.exit(0));
+
+        JButton howToPlayButton = new JButton("How to Play");
+        howToPlayButton.addActionListener(e -> cardLayout.show(mainPanel, "Instructions"));
+
+        JButton backToGameButton = new JButton("Back to Game");
+        backToGameButton.addActionListener(e -> cardLayout.show(mainPanel, "Game"));
 
         JPanel buttonPanel = new JPanel();
+        buttonPanel.add(startButton);
         buttonPanel.add(tryAgainButton);
         buttonPanel.add(endGameButton);
+        buttonPanel.add(howToPlayButton);
 
-        add(buttonPanel, BorderLayout.SOUTH);
+        gamePanel.add(buttonPanel, BorderLayout.SOUTH);
+        gamePanel.add(this, BorderLayout.CENTER);
+
+        JTextArea instructionsText = new JTextArea(
+                "How to Play:\n" +
+                        "- Use the LEFT and RIGHT arrow keys to move the car.\n" +
+                        "- Avoid hitting obstacles to keep the game going.\n" +
+                        "- Try to score as many points as possible!\n" +
+                        "- For every brick wall you dodge you get 1 point\n" +
+                        "- The game gets harder for each 5 points you score.\n" +
+                        "- Press 'Try Again' to restart the game if you crash.\n" +
+                        "- Have fun!"
+        );
+        instructionsText.setFont(new Font("Times New Roman", Font.PLAIN, 20));
+        instructionsText.setForeground(Color.WHITE);
+        instructionsText.setBackground(Color.BLACK);
+        instructionsText.setEditable(false);
+        instructionsPanel.add(new JScrollPane(instructionsText), BorderLayout.CENTER);
+        instructionsPanel.add(backToGameButton, BorderLayout.SOUTH);
+
+        mainPanel.add(gamePanel, "Game");
+        mainPanel.add(instructionsPanel, "Instructions");
+
+        cardLayout.show(mainPanel, "Game");
+
+        JFrame frame = new JFrame("Racing Game");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.add(mainPanel);
+        frame.setSize(700, 700);
+        frame.setVisible(true);
 
         Timer timer = new Timer(1000 / 60, e -> {
-            updateGame();
-            repaint();
+            if (gameStarted) {
+                updateGame();
+                repaint();
+            }
         });
         timer.start();
     }
@@ -73,7 +124,6 @@ public class RacingGame extends JPanel implements KeyListener {
             AudioInputStream engineStream = AudioSystem.getAudioInputStream(engineFile);
             engineClip = AudioSystem.getClip();
             engineClip.open(engineStream);
-            engineClip.loop(Clip.LOOP_CONTINUOUSLY);
 
             // Crash sound
             File crashFile = new File("soundeffects/Car-Crash-Sound-Effect.wav");
@@ -100,13 +150,9 @@ public class RacingGame extends JPanel implements KeyListener {
                     score++;
                 }
 
-                // Define the car's hitbox based on its size (150x200)
-                Rectangle carHitbox = new Rectangle(playerX + 20, playerY + 20, 110, 160); // Adjusted size
+                Rectangle carHitbox = new Rectangle(playerX + 20, playerY + 20, 110, 160);
+                Rectangle obstacleHitbox = new Rectangle(obstacleXs[i], obstacleYs[i], 150, 150);
 
-                // Define the obstacle's hitbox based on its size (150x150)
-                Rectangle obstacleHitbox = new Rectangle(obstacleXs[i], obstacleYs[i], 150, 150); // Updated to 150x150
-
-                // Check for collision using Rectangle intersection
                 if (carHitbox.intersects(obstacleHitbox)) {
                     gameOver = true;
                     if (score > highScore) {
@@ -117,7 +163,6 @@ public class RacingGame extends JPanel implements KeyListener {
                 }
             }
 
-            // Keep the car within bounds
             if (playerX < 0) playerX = 0;
             if (playerX + 150 > 700) playerX = 700 - 150;
         }
@@ -148,15 +193,6 @@ public class RacingGame extends JPanel implements KeyListener {
             g.setColor(Color.RED);
             g.drawString("Game Over!", 200, 300);
         }
-
-        // Optional Debugging: Draw Bounding Boxes for car and obstacles
-        g.setColor(Color.YELLOW);
-        g.drawRect(playerX + 20, playerY + 20, 110, 160);  // Adjusted car bounding box
-
-        g.setColor(Color.CYAN);
-        for (int i = 0; i < activeObstacles; i++) {
-            g.drawRect(obstacleXs[i], obstacleYs[i], 150, 150);  // Updated obstacle bounding box
-        }
     }
 
     private void resetGame() {
@@ -165,6 +201,7 @@ public class RacingGame extends JPanel implements KeyListener {
         score = 0;
         obstacleSpeed = 3;
         gameOver = false;
+        gameStarted = false;
 
         for (int i = 0; i < obstacleXs.length; i++) {
             obstacleXs[i] = new Random().nextInt(500);
@@ -173,13 +210,12 @@ public class RacingGame extends JPanel implements KeyListener {
 
         crashClip.stop();
         crashClip.setFramePosition(0); // Resets crash sound
-        engineClip.loop(Clip.LOOP_CONTINUOUSLY); // Restarts engine sound
-        requestFocusInWindow();
+        engineClip.stop(); // Stop engine sound
     }
 
     @Override
     public void keyPressed(KeyEvent e) {
-        if (gameOver) {
+        if (gameOver || !gameStarted) {
             return;
         }
 
@@ -197,12 +233,10 @@ public class RacingGame extends JPanel implements KeyListener {
     public void keyTyped(KeyEvent e) {}
 
     public static void main(String[] args) {
-        JFrame frame = new JFrame("Racing Game");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.add(new RacingGame());
-        frame.setSize(700, 700); // was 650 before
-        frame.setVisible(true);
+        new RacingGame();
     }
 }
+
+
 
 
